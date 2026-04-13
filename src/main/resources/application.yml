@@ -1,0 +1,15 @@
+# FileTransferServer Configuration
+fts:
+  port: 7111
+  worker-threads: 8
+  business-threads: 16
+  read-timeout-seconds: 30
+  max-scan-results: 10000
+  max-body-size: 10485760  # 10MB
+  allowed-directories:
+    - /data/files
+    - /opt/transfer
+
+spring:
+  application:
+    name: file-transfer-client
