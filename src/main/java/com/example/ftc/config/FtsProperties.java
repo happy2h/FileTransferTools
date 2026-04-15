@@ -21,6 +21,8 @@ public class FtsProperties {
     private int workerThreads = 8;
     private int businessThreads = 16;
     private int readTimeoutSeconds = 30;
+    private int outboundReadTimeoutSeconds = 10;
+    private int connectTimeoutMillis = 5000;
     private int maxScanResults = 10000;
     private long maxBodySize = 10485760;  // 10MB
     private List<String> allowedDirectories;

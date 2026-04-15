@@ -1,15 +1,18 @@
-# FileTransferServer Configuration
+# FileTransferServer Configuration - Node 2 (for P2P testing)
 fts:
-  port: 7111
+  port: 7112
   worker-threads: 8
   business-threads: 16
   read-timeout-seconds: 30
+  outbound-read-timeout-seconds: 10
+  connect-timeout-millis: 5000
   max-scan-results: 10000
   max-body-size: 10485760  # 10MB
   allowed-directories:
     - /data/files
     - /opt/transfer
+    - /tmp
 
 spring:
   application:
-    name: file-transfer-client
+    name: file-transfer-client-node2

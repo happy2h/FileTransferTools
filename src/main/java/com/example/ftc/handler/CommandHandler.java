@@ -25,7 +25,7 @@ public interface CommandHandler<REQ, RESP> {
      *
      * @param request Request object
      * @param ctx     ChannelHandlerContext
-     * @return Response object
+     * @return Response object, or null if response will be written asynchronously (e.g., relay scenario)
      */
     RESP handle(REQ request, ChannelHandlerContext ctx);
 }

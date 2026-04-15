@@ -33,8 +33,10 @@ public class NettyServerBootstrap implements InitializingBean, DisposableBean {
     @Autowired
     private FtsChannelInitializer channelInitializer;
 
-    private EventLoopGroup bossGroup;
+    @Autowired
     private EventLoopGroup workerGroup;
+
+    private EventLoopGroup bossGroup;
     private Channel serverChannel;
 
     @Override
@@ -43,9 +45,6 @@ public class NettyServerBootstrap implements InitializingBean, DisposableBean {
 
         // Boss group - accepts incoming connections
         bossGroup = new NioEventLoopGroup(1);
-
-        // Worker group - handles I/O events for accepted connections
-        workerGroup = new NioEventLoopGroup(properties.getWorkerThreads());
 
         // Configure server
         ServerBootstrap bootstrap = new ServerBootstrap();

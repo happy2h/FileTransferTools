@@ -79,7 +79,11 @@ public class CommandDispatchHandler extends SimpleChannelInboundHandler<CommandF
         // Execute handler - raw type is intentional here due to generic type erasure
         CommandHandler<Object, Object> typedHandler = (CommandHandler<Object, Object>) handler;
         Object response = typedHandler.handle(request, ctx);
-        ctx.writeAndFlush(response);
+
+        // response == null 表示 Handler 自行处理异步（如中继场景），框架不介入
+        if (response != null) {
+            ctx.writeAndFlush(response);
+        }
     }
 
     @Override
