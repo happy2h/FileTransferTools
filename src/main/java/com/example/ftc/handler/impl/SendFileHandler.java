@@ -2,12 +2,15 @@ package com.example.ftc.handler.impl;
 
 import com.example.ftc.client.FtsClientBootstrapFactory;
 import com.example.ftc.config.FtsProperties;
+import com.example.ftc.exception.DecompressException;
 import com.example.ftc.handler.CommandHandler;
 import com.example.ftc.model.AttributeKeys;
+import com.example.ftc.model.DecompressConfig;
 import com.example.ftc.model.ReceiveFileRequest;
 import com.example.ftc.model.ReceiveFileResponse;
 import com.example.ftc.model.SendFileRequest;
 import com.example.ftc.model.SendFileResponse;
+import com.example.ftc.service.FileDecompressor;
 import com.example.ftc.service.FileScanner;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -18,13 +21,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Handler for SENDFILE command
- *
- * Supports both local scanning and P2P relay to another FTS node
+ * Handler for SENDFILE command.
+ * Supports both local scanning (with optional decompression) and P2P relay to another FTS node.
  */
 @Component
 public class SendFileHandler implements CommandHandler<SendFileRequest, SendFileResponse> {
@@ -39,6 +45,9 @@ public class SendFileHandler implements CommandHandler<SendFileRequest, SendFile
 
     @Autowired
     private FtsClientBootstrapFactory clientFactory;
+
+    @Autowired
+    private FileDecompressor fileDecompressor;
 
     @Override
     public String command() {
@@ -55,12 +64,9 @@ public class SendFileHandler implements CommandHandler<SendFileRequest, SendFile
         long startTime = System.currentTimeMillis();
 
         try {
-            // ── 路径一：无目标节点，本地扫描 ──────────────────────────────────────
             if (request.getDstFileServeIp() == null || request.getDstFileServeIp().isBlank()) {
                 return handleLocalScan(request, startTime);
             }
-
-            // ── 路径二：P2P 中继 ──────────────────────────────────────────────────
             return handleRelay(request, ctx);
 
         } catch (Exception e) {
@@ -70,34 +76,22 @@ public class SendFileHandler implements CommandHandler<SendFileRequest, SendFile
         }
     }
 
-    /**
-     * 处理本地扫描
-     */
     private SendFileResponse handleLocalScan(SendFileRequest request, long startTime) {
         try {
-            // Validate request
             if (request.getScanDirectory() == null || request.getScanDirectory().isEmpty()) {
                 log.warn("Invalid request: scan directory is empty");
                 return SendFileResponse.error("Scan directory cannot be empty");
             }
 
-            // Security: Check if directory is in allowed list
             Path requestedPath = Paths.get(request.getScanDirectory()).normalize().toAbsolutePath();
-            boolean isAllowed = false;
-
-            for (Path allowedBase : properties.getAllowedDirectoryPaths()) {
-                if (requestedPath.startsWith(allowedBase)) {
-                    isAllowed = true;
-                    break;
-                }
-            }
+            boolean isAllowed = properties.getAllowedDirectoryPaths().stream()
+                    .anyMatch(requestedPath::startsWith);
 
             if (!isAllowed) {
                 log.warn("Access denied: directory not in allowed list: {}", requestedPath);
                 return SendFileResponse.error("Access denied: directory not in allowed list");
             }
 
-            // Perform scan
             FileScanner.ScanResult result = fileScanner.scan(
                     request.getScanDirectory(),
                     request.getFilePattern(),
@@ -111,10 +105,49 @@ public class SendFileHandler implements CommandHandler<SendFileRequest, SendFile
                 return SendFileResponse.error(result.getErrorMessage());
             }
 
-            long elapsed = System.currentTimeMillis() - startTime;
-            log.info("Local scan completed successfully: {} files found in {} ms, truncated: {}",
-                    result.getFiles().size(), elapsed, result.isTruncated());
+            // ── 解压步骤 ──────────────────────────────────────────────────────────
+            DecompressConfig cfg = request.getDecompressConfig();
+            if (cfg != null) {
+                // 校验 targetDirectory 在 allowedDirectories 内
+                if (cfg.getTargetDirectory() != null && !cfg.getTargetDirectory().isBlank()) {
+                    Path target = Path.of(cfg.getTargetDirectory()).normalize().toAbsolutePath();
+                    boolean targetAllowed = properties.getAllowedDirectoryPaths().stream()
+                            .anyMatch(target::startsWith);
+                    if (!targetAllowed) {
+                        return SendFileResponse.error("Target directory not in allowed list: " + cfg.getTargetDirectory());
+                    }
+                }
 
+                List<SendFileResponse.FileEntry> finalFiles = new ArrayList<>();
+                for (SendFileResponse.FileEntry entry : result.getFiles()) {
+                    if (matchesCompressPatterns(entry.getFileName(), cfg.getCompressPatterns())) {
+                        try {
+                            List<SendFileResponse.FileEntry> extracted =
+                                    fileDecompressor.decompress(entry, cfg, properties);
+                            finalFiles.addAll(extracted);
+                            if (!cfg.isDeleteSourceAfterExtract()) {
+                                finalFiles.add(entry);
+                            } else {
+                                java.nio.file.Files.deleteIfExists(Path.of(entry.getAbsolutePath()));
+                            }
+                        } catch (DecompressException e) {
+                            log.error("Failed to decompress {}: {}", entry.getAbsolutePath(), e.getMessage());
+                            finalFiles.add(entry); // keep original on error
+                        }
+                    } else {
+                        finalFiles.add(entry);
+                    }
+                }
+
+                long elapsed = System.currentTimeMillis() - startTime;
+                log.info("Local scan + decompress completed: {} entries in {} ms", finalFiles.size(), elapsed);
+                return SendFileResponse.success(finalFiles, result.isTruncated());
+            }
+            // ── 原有逻辑 ──────────────────────────────────────────────────────────
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("Local scan completed: {} files in {} ms, truncated: {}",
+                    result.getFiles().size(), elapsed, result.isTruncated());
             return SendFileResponse.success(result.getFiles(), result.isTruncated());
 
         } catch (Exception e) {
@@ -124,20 +157,24 @@ public class SendFileHandler implements CommandHandler<SendFileRequest, SendFile
         }
     }
 
-    /**
-     * 处理 P2P 中继到另一个节点
-     */
+    private boolean matchesCompressPatterns(String fileName, List<String> patterns) {
+        if (patterns == null || patterns.isEmpty()) return true;
+        Path fileNamePath = Path.of(fileName);
+        for (String pattern : patterns) {
+            PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
+            if (matcher.matches(fileNamePath)) return true;
+        }
+        return false;
+    }
+
     private SendFileResponse handleRelay(SendFileRequest request, ChannelHandlerContext inboundCtx) {
         String targetIp = request.getDstFileServeIp();
         int targetPort = request.getDstFileServePort() > 0 ? request.getDstFileServePort() : 7111;
 
         log.info("Relaying SENDFILE to Node B: {}/{}", targetIp, targetPort);
 
-        // 1. 创建 Promise，绑定到 inbound Channel 所在的 EventLoop
-        //    确保 Listener 回调在正确线程上执行，无需额外同步
         Promise<ReceiveFileResponse> promise = inboundCtx.executor().newPromise();
 
-        // 2. 注册 Promise 完成监听：收到 Node B 响应后，写回 Remote Service
         promise.addListener((Future<ReceiveFileResponse> f) -> {
             SendFileResponse resp;
             if (f.isSuccess()) {
@@ -147,37 +184,27 @@ public class SendFileHandler implements CommandHandler<SendFileRequest, SendFile
                 resp = SendFileResponse.error("Relay failed: " + f.cause().getMessage());
                 log.error("Relay failed", f.cause());
             }
-            // 此 Listener 运行在 inbound Channel 的 EventLoop 上，直接 writeAndFlush 安全
             if (inboundCtx.channel().isActive()) {
                 inboundCtx.writeAndFlush(resp);
             }
         });
 
-        // 3. 构造出站请求
         ReceiveFileRequest recvReq = ReceiveFileRequest.from(request);
 
-        // 4. 发起出站连接（异步，不阻塞当前 WorkerThread）
         clientFactory.bootstrap()
                 .attr(AttributeKeys.PROMISE_KEY, promise)
                 .attr(AttributeKeys.REQUEST_KEY, recvReq)
                 .connect(targetIp, targetPort)
                 .addListener((ChannelFuture cf) -> {
                     if (!cf.isSuccess()) {
-                        // 连接失败，直接 fail Promise，触发上面的 Listener 写回错误响应
                         log.error("Failed to connect to Node B {}/{}: {}", targetIp, targetPort, cf.cause().getMessage());
                         promise.setFailure(cf.cause());
                     }
-                    // 连接成功时，OutboundChannelInitializer 中的 channelActive
-                    // 会自动发送 RECVFILE 指令
                 });
 
-        // 5. 返回 null，告知框架响应将异步写入，本次调用无需同步返回值
         return null;
     }
 
-    /**
-     * 将 ReceiveFileResponse 转换为 SendFileResponse
-     */
     private SendFileResponse convertToSendFileResponse(ReceiveFileResponse recvResp) {
         SendFileResponse resp = new SendFileResponse();
         resp.setSuccess(recvResp.isSuccess());

@@ -12,6 +12,11 @@ fts:
     - /data/files
     - /opt/transfer
     - /tmp
+  decompress:
+    fallback-enabled: true
+    default-max-entries: 10000
+    default-max-entry-size-mb: 500
+    default-max-total-size-gb: 2
 
 spring:
   application:

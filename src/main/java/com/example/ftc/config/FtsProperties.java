@@ -26,6 +26,7 @@ public class FtsProperties {
     private int maxScanResults = 10000;
     private long maxBodySize = 10485760;  // 10MB
     private List<String> allowedDirectories;
+    private Decompress decompress = new Decompress();
 
     /**
      * Get allowed directory paths as Path objects
@@ -38,5 +39,13 @@ public class FtsProperties {
                 .map(Paths::get)
                 .map(Path::normalize)
                 .collect(Collectors.toList());
+    }
+
+    @Data
+    public static class Decompress {
+        private boolean fallbackEnabled = true;
+        private int defaultMaxEntries = 10_000;
+        private long defaultMaxEntrySizeMb = 500;
+        private long defaultMaxTotalSizeGb = 2;
     }
 }
