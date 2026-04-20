@@ -20,13 +20,14 @@ public class FileTransferClientTest {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        // Test 1: Local SENDFILE (no dstFileServeIp)
+        System.out.println();
+
+        // Test 1: Local SENDFILE (without dstFileServeIp)
         System.out.println("=== Test 1: Local SENDFILE ===");
         SendFileRequest localRequest = new SendFileRequest();
         localRequest.setScanDirectory("/tmp");
         localRequest.setRecursive(false);
         localRequest.setMaxFileSizeBytes(0);
-        localRequest.setDstFileServeIp(null); // Local scan
 
         SendFileResponse localResponse = sendSendFileRequest("localhost", 7111, localRequest);
         printResponse(localResponse);
@@ -36,7 +37,7 @@ public class FileTransferClientTest {
         // Test 2: P2P Relay SENDFILE (with dstFileServeIp)
         // Note: This requires another FTS node running on port 7112
         // Uncomment to test P2P relay
-        /*
+
         System.out.println("=== Test 2: P2P Relay SENDFILE ===");
         SendFileRequest relayRequest = new SendFileRequest();
         relayRequest.setScanDirectory("/tmp");
@@ -47,7 +48,7 @@ public class FileTransferClientTest {
 
         SendFileResponse relayResponse = sendSendFileRequest("localhost", 7111, relayRequest);
         printResponse(relayResponse);
-        */
+
 
         System.out.println("Test completed");
     }
@@ -91,7 +92,6 @@ public class FileTransferClientTest {
 
             // Read response length (8 bytes, Big-Endian long)
             long respLength = in.readLong();
-            System.out.println("Response body length: " + respLength);
 
             if (respLength > 10 * 1024 * 1024) {
                 throw new IOException("Response too large: " + respLength);
@@ -192,16 +192,32 @@ public class FileTransferClientTest {
             return success;
         }
 
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
+
         public String getErrorMessage() {
             return errorMessage;
+        }
+
+        public void setErrorMessage(String errorMessage) {
+            this.errorMessage = errorMessage;
         }
 
         public List<FileEntry> getFiles() {
             return files;
         }
 
+        public void setFiles(List<FileEntry> files) {
+            this.files = files;
+        }
+
         public boolean isTruncated() {
             return truncated;
+        }
+
+        public void setTruncated(boolean truncated) {
+            this.truncated = truncated;
         }
     }
 
@@ -211,12 +227,36 @@ public class FileTransferClientTest {
         private long fileSize;
         private long lastModified;
 
+        public String getAbsolute() {
+            return absolutePath;
+        }
+
         public String getFileName() {
             return fileName;
         }
 
         public long getFileSize() {
             return fileSize;
+        }
+
+        public long getLastModified() {
+            return lastModified;
+        }
+
+        public void setAbsolutePath(String absolutePath) {
+            this.absolutePath = absolutePath;
+        }
+
+        public void setFileName(String fileName) {
+            this.fileName = fileName;
+        }
+
+        public void setFileSize(long fileSize) {
+            this.fileSize = fileSize;
+        }
+
+        public void setLastModified(long lastModified) {
+            this.lastModified = lastModified;
         }
     }
 }

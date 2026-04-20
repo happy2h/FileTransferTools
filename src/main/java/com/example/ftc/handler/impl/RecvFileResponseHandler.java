@@ -5,6 +5,7 @@ import com.example.ftc.model.CommandFrame;
 import com.example.ftc.model.ReceiveFileRequest;
 import com.example.ftc.model.ReceiveFileResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.concurrent.Promise;
@@ -19,6 +20,7 @@ import java.io.IOException;
  * RecvFileResponseHandler - 出站 Channel 的响应处理，resolve Promise
  */
 @Component
+@ChannelHandler.Sharable
 public class RecvFileResponseHandler extends SimpleChannelInboundHandler<byte[]> {
 
     private static final Logger log = LoggerFactory.getLogger(RecvFileResponseHandler.class);

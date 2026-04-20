@@ -21,9 +21,6 @@ import java.util.concurrent.TimeUnit;
 public class OutboundChannelInitializer extends ChannelInitializer<SocketChannel> {
 
     @Autowired
-    private CommandResponseFrameDecoder commandResponseFrameDecoder;
-
-    @Autowired
     private CommandFrameEncoder commandFrameEncoder;
 
     @Autowired
@@ -40,7 +37,7 @@ public class OutboundChannelInitializer extends ChannelInitializer<SocketChannel
                 // 出站：将 CommandFrame 编码为 COMMAND(8B) + LENGTH(8B) + BODY(NB)
                 .addLast("frameEncoder", commandFrameEncoder)
                 // 入站：将 Node B 的响应帧解码为 byte[]（LENGTH(8B) + BODY(NB)）
-                .addLast("responseDecoder", commandResponseFrameDecoder)
+                .addLast("responseDecoder", new CommandResponseFrameDecoder())
                 // 入站：处理 byte[]，resolve Promise
                 .addLast("recvResponseHandler", recvFileResponseHandler);
     }

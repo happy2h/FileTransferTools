@@ -5,6 +5,7 @@ import com.example.ftc.model.CommandFrame;
 import com.example.ftc.model.SendFileResponse;
 import com.example.ftc.registry.CommandRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -16,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- *   Routes commands to their respective handlers
+ * Routes commands to their respective handlers
  */
 @Component
 @io.netty.channel.ChannelHandler.Sharable
@@ -45,7 +46,7 @@ public class CommandDispatchHandler extends SimpleChannelInboundHandler<CommandF
             if (body.length > properties.getMaxBodySize()) {
                 log.warn("Body size exceeds limit: {} > {}", body.length, properties.getMaxBodySize());
                 ctx.writeAndFlush(SendFileResponse.error("Body size exceeds maximum allowed"))
-                   .addListener(ChannelFutureListener.CLOSE);
+                        .addListener(ChannelFutureListener.CLOSE);
                 return;
             }
 
@@ -54,7 +55,7 @@ public class CommandDispatchHandler extends SimpleChannelInboundHandler<CommandF
             if (handler == null) {
                 log.warn("Unknown command: {}", command);
                 ctx.writeAndFlush(SendFileResponse.error("Unknown command: " + command))
-                   .addListener(ChannelFutureListener.CLOSE);
+                        .addListener(ChannelFutureListener.CLOSE);
                 return;
             }
 
@@ -66,7 +67,7 @@ public class CommandDispatchHandler extends SimpleChannelInboundHandler<CommandF
         } catch (Exception e) {
             log.error("Error processing command: {}", command, e);
             ctx.writeAndFlush(SendFileResponse.error("Internal server error: " + e.getMessage()))
-               .addListener(ChannelFutureListener.CLOSE);
+                    .addListener(ChannelFutureListener.CLOSE);
         }
     }
 
@@ -99,7 +100,7 @@ public class CommandDispatchHandler extends SimpleChannelInboundHandler<CommandF
     }
 
     @Override
-       public void channelActive(ChannelHandlerContext ctx) {
+    public void channelActive(ChannelHandlerContext ctx) {
         log.info("Client connected: {}", ctx.channel().remoteAddress());
     }
 

@@ -41,10 +41,11 @@ public class FtsChannelInitializer extends ChannelInitializer<SocketChannel> {
         // Custom frame decoder - handles TCP packet fragmentation/merging
         pipeline.addLast("frameDecoder", new CommandFrameDecoder());
 
+        // Response encoder - encodes response objects to binary format
+        // Must be before commandDispatcher so outbound messages pass through it
+        pipeline.addLast("responseEncoder", responseEncoder);
+
         // Command dispatcher - routes commands to appropriate handlers
         pipeline.addLast("commandDispatcher", commandDispatchHandler);
-
-        // Response encoder - encodes response objects to binary format
-        pipeline.addLast("responseEncoder", responseEncoder);
     }
 }

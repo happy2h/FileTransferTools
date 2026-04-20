@@ -2,6 +2,7 @@ package com.example.ftc.codec;
 
 import com.example.ftc.model.CommandFrame;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import java.util.Arrays;
  * - BODY: N bytes, JSON
  */
 @Component
+@ChannelHandler.Sharable
 public class CommandFrameEncoder extends MessageToByteEncoder<CommandFrame> {
 
     private static final int COMMAND_LENGTH = 8;

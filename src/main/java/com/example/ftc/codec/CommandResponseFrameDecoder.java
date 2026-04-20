@@ -3,7 +3,6 @@ package com.example.ftc.codec;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
@@ -13,8 +12,9 @@ import java.util.List;
  * Protocol:
  * - RESP_LENGTH: 8 bytes, long, Big-Endian
  * - RESP_BODY: N bytes, JSON
+ *
+ * ByteToMessageDecoder maintains per-channel state; must be instantiated per channel.
  */
-@Component
 public class CommandResponseFrameDecoder extends ByteToMessageDecoder {
 
     private static final int LENGTH_LENGTH = 8;
